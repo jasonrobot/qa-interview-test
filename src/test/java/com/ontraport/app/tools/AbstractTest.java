@@ -4,6 +4,15 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.MethodRule;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.junit.runners.model.FrameworkMethod;
+import org.junit.runners.model.Statement;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
@@ -11,10 +20,6 @@ import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxProfile;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.support.ui.WebDriverWait;
-import org.testng.ITestResult;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeClass;
 
 
 /**
@@ -32,10 +37,12 @@ public abstract class AbstractTest extends AbstractBase
 
     private String headerString = "OntraportStaging";
 
+    private static String methodName;
+
     /**
      * Set up the webdriver instance
      */
-    protected void setupDriver () throws IOException
+    protected static void setupDriver () throws IOException
     {
         FirefoxProfile profile = new FirefoxProfile();
 
@@ -57,23 +64,52 @@ public abstract class AbstractTest extends AbstractBase
      * Really anything that needs to be done before each and every test can be done here.
      */
     @BeforeClass
-    public void setup () throws IOException
+    public static void setup () throws IOException
     {
         setupDriver();
     }
 
-    /**
-     * Called after every test method. Here's a good place to check the status of the test and do
-     * any custom reporting (like screenshots) that's beyond TestNG's builtin reporting
-     *
-     * @param result {@link ITestResult} object that is passed in automatically by TestNG
-     */
-    @AfterMethod
-    public void afterMethod (ITestResult result)
+    @Rule
+    public TestRule watcher = new TestWatcher()
     {
-        if ( result.isSuccess() == false )
+        @Override
+        protected void starting (Description description)
         {
-            takeScreenshot(result.getName().trim());
+            methodName = description.getMethodName();
+            System.out.println("Starting test: " + methodName);
+        }
+
+        @Override
+        protected void finished (Description description)
+        {
+            System.out.println("Finished test: " + methodName);
+        }
+    };
+
+    @Rule
+    public Screenshot screenshotTestRule = new Screenshot();
+
+    class Screenshot implements MethodRule
+    {
+        @Override
+        public Statement apply (final Statement statement, final FrameworkMethod frameworkMethod, final Object o)
+        {
+            return new Statement()
+            {
+                @Override
+                public void evaluate () throws Throwable
+                {
+                    try
+                    {
+                        statement.evaluate();
+                    }
+                    catch (Throwable t)
+                    {
+                        takeScreenshot("screenshots/failure-" + methodName + "-" + errorCount++ + ".png");
+                        throw t;
+                    }
+                }
+            };
         }
     }
 
@@ -81,7 +117,7 @@ public abstract class AbstractTest extends AbstractBase
      * Called after every test method in the class has been executed.
      */
     @AfterClass
-    public void cleanup ()
+    public static void cleanup ()
     {
         driver.quit();
     }
@@ -92,7 +128,7 @@ public abstract class AbstractTest extends AbstractBase
      *
      * @param name the base name of the screenshot
      */
-    public void takeScreenshot (String name)
+    public static void takeScreenshot (String name)
     {
         try
         {
